@@ -1,0 +1,189 @@
+---
+title: "Assignment_2"
+author: Group 9- Shwittan Ravikumar, Deepak Arora, Samrat Korupolu, Purushothaman
+  Murugesan, Vallabhan
+date: "26 February 2020"
+output: pdf_document
+---
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+if(!require("pacman")) install.packages("pacman")
+pacman::p_load(forecast, tidyverse, gplots, GGally, mosaic,
+               scales, mosaic, mapproj, mlbench, data.table, reshape, dplyr, knitr,tinytex,latexpdf,latex2exp, leaps, ggcorrplot, corrplot)
+```
+
+```{r}
+Airfares.dt <- read.csv("Airfares.csv")
+Airfares.dt <- Airfares.dt[,-c(1:4)]
+Airfares.dt
+```
+
+```{r}
+Airfares.dt$VACATION <- as.numeric(Airfares.dt$VACATION)
+Airfares.dt$SW <- as.numeric(Airfares.dt$SW)
+Airfares.dt$SLOT <- as.numeric(Airfares.dt$SLOT)
+Airfares.dt$GATE <- as.numeric(Airfares.dt$GATE)
+Airfares.dt
+```
+
+#Q1
+```{r}
+Airfares_cor <- cor(Airfares.dt)
+Airfares_cor[,14]
+```
+
+```{r}
+plot.coupon <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = COUPON))
+plot.new <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = NEW))
+plot.vacation <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = VACATION))
+plot.sw <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = SW))
+plot.hi <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = HI))
+plot.s_income <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = S_INCOME))
+plot.e_income <- ggplot(Airfares.dt)+geom_point(aes(x = FARE, y = E_INCOME))
+plot.s_pop <- ggplot(Airfares.dt)+geom_point(aes(x = FARE,y = S_POP))
+plot.e_pop <- ggplot(Airfares.dt)+geom_point(aes(x = FARE,y = E_POP))
+plot.slot <- ggplot(Airfares.dt)+geom_point(aes(x = FARE,y = SLOT))
+plot.gate <- ggplot(Airfares.dt)+geom_point(aes(x = FARE,y = GATE))
+plot.distance <- ggplot(Airfares.dt)+geom_point(aes(x = FARE,y = DISTANCE))
+plot.pax <- ggplot(Airfares.dt)+geom_point(aes(x = FARE,y = PAX))
+
+library(gridExtra)
+
+grid.arrange(plot.coupon, plot.new, plot.vacation, plot.sw, plot.hi, plot.s_income, plot.e_income, plot.s_pop, plot.e_pop, plot.slot, plot.gate, plot.distance, plot.pax)
+```
+#Answer 1 - From the results of correlation matrix, DISTANCE can be the best predictor for FARE, as the correlation is 0.67, which is higher than anyother predictor. Even the scatterplot confrims the same, which depicts strong positive correlation between FARE vs DISTANCE.
+
+#Q2
+```{r}
+pct_vacation = (nrow(subset(Airfares.dt, VACATION==2))/ nrow(Airfares.dt))*100
+pct_vacation <- c(pct_vacation, (100-pct_vacation))
+names(pct_vacation) <- c("Yes", "No")
+
+pct_sw = (nrow(subset(Airfares.dt, SW==2))/ nrow(Airfares.dt))*100
+pct_sw <- c(pct_sw, (100-pct_sw))
+names(pct_sw) <- c("Yes", "No")
+
+pct_slot = (nrow(subset(Airfares.dt, SLOT==2))/ nrow(Airfares.dt))*100
+pct_slot <- c(pct_slot, (100-pct_slot))
+names(pct_slot) <- c("Free", "Controlled")
+
+pct_gate = (nrow(subset(Airfares.dt, GATE==2))/ nrow(Airfares.dt))*100
+pct_gate <- c(pct_gate, (100-pct_gate))
+names(pct_gate) <- c("Free", "Constrained")
+
+pct.df1 <- data.frame(pct_vacation, pct_sw)
+pct.df1
+
+pct.df2 <- data.frame(pct_slot)
+pct.df2
+
+pct.df3 <- data.frame(pct_gate)
+pct.df3
+?group_by
+Airfares.dt %>% group_by(VACATION) %>%
+  summarize(Fare_Vacation = mean(FARE))
+
+Airfares.dt %>% group_by(SW) %>%
+  summarize(Fare_SW = mean(FARE))
+
+Airfares.dt %>% group_by(SLOT) %>%
+  summarize(Fare_Slot = mean(FARE))
+
+Airfares.dt %>% group_by(GATE) %>%
+  summarize(Fare_Gate = mean(FARE))
+```
+#Answer 2 - SW can be the best categorical predictor as there is Max drop in average from 188.1 to 98.38  included
+#Q3
+```{r}
+set.seed(40)
+rows <- sample(nrow(Airfares.dt))
+Airfares.dt <- Airfares.dt[rows,]
+
+split <- round(nrow(Airfares.dt) * 0.8)
+train.df <- Airfares.dt[1:split, ]
+test.df <- Airfares.dt[(split+1):nrow(Airfares.dt), ]
+
+round(nrow(train.df)/nrow(Airfares.dt), digits = 3)
+```
+#Answer 3 - partitioned and rounded off the data set into 80% training and 20% test.
+
+#Q4
+```{r}
+Airfares.lm <- lm(FARE ~ ., data = train.df)
+options(scipen = 999)
+summary(Airfares.lm)
+
+Airfares.lm.stepwise <- step(Airfares.lm, direction = "both")
+summary(Airfares.lm.stepwise)  # Which variables were dropped/added?
+```
+#Answer 4 -Stepwise regression, has reduced the total predictors to 12 from 13. We can see that AIC decreased after one step and least observed value of AIC is 3655.0. Initial AIC was 3656.9, before dropping COUPON from the model.
+
+#Q5
+```{r}
+search <- regsubsets(FARE ~ ., data = train.df, nbest = 1, nvmax = dim(train.df)[2],
+                     method = "exhaustive")
+sum<-summary(search)
+# show models
+sum$which
+
+# show metrics
+sum$rsq
+sum$adjr2
+sum$cp
+```
+#Answer 5: From the data above adjusted R-sq has highest value(0.7864477) for 12th susbset combination and Cp has the optimal value of 12.04128 at 12th position. Hence, we use 12 variable reduction combination, i.e dropping COUPON. We got similar consistent result with stepwise regression also.
+
+#Q6
+```{r}
+Airfares.lm.stepwise.predict <- predict(Airfares.lm.stepwise, test.df)
+accuracy(Airfares.lm.stepwise.predict, test.df$FARE)
+
+exhaustive.lm <- lm(FARE ~ VACATION + SW + HI + NEW + S_INCOME + E_INCOME + S_POP + E_POP + SLOT + GATE + DISTANCE + PAX, data = train.df)
+fares.lm.exhaustive.predict <- predict(exhaustive.lm, test.df[,-c(1)])
+accuracy(fares.lm.exhaustive.predict, test.df$FARE)
+```
+#Answer 6: As both modelS are using the same variables, the error is also gonna be same. Hence, the RMSE(35.60815) values are same for both the models.
+
+#Q7
+```{r}
+wo_sw <- predict(Airfares.lm, data.frame(COUPON = 1.202, NEW = 3, VACATION = 1, SW = 1, HI = 4442.141, S_INCOME = 28,760, E_INCOME = 27,664, S_POP = 4,557,004, E_POP = 3,195,503, SLOT = 2, GATE = 2, PAX = 12,782, DISTANCE = 1976))
+
+wo_sw_fare <- c(wo_sw)
+names(wo_sw_fare) <- c("Average fare")
+wo_sw_fare
+```
+#Answer 7: FARE -> 146.4813
+
+#Q8
+```{r}
+w_sw <- predict(Airfares.lm, data.frame(COUPON = 1.202, NEW = 3, VACATION = 1, SW = 2, HI = 4442.141, S_INCOME = 28,760, E_INCOME = 27,664, S_POP = 4,557,004, E_POP = 3,195,503, SLOT = 2, GATE = 2, PAX = 12,782, DISTANCE = 1976))
+
+avg_fare <- c(wo_sw, w_sw, wo_sw-w_sw)
+names(avg_fare) <- c("Without Southwest", "With Southwest", "Reduction in Fare")
+
+avg_fare
+```
+# Answer 8: 104.37869 will be the average price if SW operates in this route. Difference in price is 42.10
+
+#Q9
+```{r}
+Airfares.lm.bselect <- step(Airfares.lm, direction = "backward")
+summary(Airfares.lm.bselect)
+```
+#Answer 9 - Backward regression, has reduced the total predictors to 12 from 13. We can see that AIC decreased after one step and least observed value of AIC is 3655.0. Initial AIC was 3656.9, before dropping COUPON from the model.
+
+#Q10
+```{r}
+library(MASS)
+Airfares.lm.bselectAIC <- stepAIC(Airfares.lm, direction = "backward")
+summary(Airfares.lm.bselectAIC)
+```
+# ANSWER 10 : STEPAIC model removes variables based on the weighted contributions to AIC. In the first iteration the variable COUPON got removed.

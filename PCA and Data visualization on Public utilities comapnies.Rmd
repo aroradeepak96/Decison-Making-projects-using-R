@@ -1,0 +1,106 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+#Group 9
+
+
+
+```{r}
+if(!require("pacman")) install.packages("pacman")
+pacman::p_load(forecast, tidyverse, gplots, GGally, mosaic,
+               scales, mosaic, mapproj, mlbench, data.table, reshape, knitr,tinytex,latexpdf,latex2exp)
+```
+               
+
+##ANSWER1
+```{r}
+Utilities.dt <- read.csv("C:/Users/arora/Documents/R/Utilities.csv")
+summary(Utilities.dt[,!c("Company")])
+```
+
+```{r}
+sd_Utilities<-data.table(Utilities.dt)
+sd_all <- sd_Utilities[, .(sdfc=sd(Fixed_charge), sdROR=sd(RoR), sdCost=sd(Cost), sdLf=sd(Load_factor),sdDG=sd(Demand_growth),sdSales=sd(Sales),sdNuclear=sd(Nuclear),sdFuelCost=sd(Fuel_Cost))]
+sd_all
+```
+# Sales has the largest variablity as it has the largest standard deviation```
+
+
+##ANSWER2
+```{r}
+#Fixed_charge
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Fixed_charge),fill = "gold1", outlier.color = "red")+
+  ggtitle("Fixed charge")
+
+#RoR
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= RoR),fill = "gold1", outlier.color = "red")+
+  ggtitle("RoR")
+
+#Cost
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Cost),fill = "gold1", outlier.color = "red")+
+  ggtitle("Cost")
+
+#Load_factor
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Load_factor),fill = "gold1", outlier.color = "red")+
+  ggtitle("Load factor")
+
+#Demand growth
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Demand_growth),fill = "gold1", outlier.color = "red")+
+  ggtitle("Demand growth")
+
+#Sales
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Sales),fill = "gold1", outlier.color = "red")+
+  ggtitle("Sales")
+
+#Nuclear
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Nuclear),fill = "gold1", outlier.color = "red")+
+  ggtitle("Nuclear")
+
+#Fuel Cost
+ggplot(Utilities.dt) +
+  geom_boxplot(aes(y= Fuel_Cost),fill = "gold1", outlier.color = "red")+
+  ggtitle("Fuel cost")
+```
+# We can see extreme values in FIXED CHARGE and SALES as we can see they are out of the following limits Q1-1.5*IQR- q3+1.5IQR. where in IQR = Q3-Q1
+
+##ANSWER3
+```{r}
+utilities.df <- setDF(Utilities.dt)
+drop_var <- c("Company")
+num.utilities.df <- utilities.df[, !(names(utilities.df) %in% drop_var)]
+round(cor(num.utilities.df),2)
+
+heatmap.2(cor(num.utilities.df), dendrogram = "none", 
+          cellnote = round(cor(num.utilities.df),2), notecol = "navy", 
+          key = FALSE, trace = "none", margins = c(7,10), cexRow=1, cexCol = 1)
+```
+#A strong positive correlation occurs between 'RoR and Fixed charge', 'Cost and Demand growth', 'Load factor and fuel cost'. The highest positive correlation occurs between RoR and Fixed charge.
+#A strong negative correlation occurs between 'Fuel cost and sales', 'Nuclear and Sales', 'Cost and RoR'. The highest negative correlation occurs between Fuel cost and Sales.
+
+
+```{r}
+##ANSWER4
+
+utilities.pca <- prcomp(data.frame(Utilities.dt[,2:9]))
+summary(utilities.pca)
+utilities.pca$rot
+utilities.pca$x
+```
+#Proportion of variance from PC1 is 0.9998 which is almost close to 1. Hence by keeping just PC1 variable out of eight, we can still work without the rest seven PC's for same kind of results.
+ 
+```{r}
+pcs_s <- prcomp(Utilities.dt[,-c(1)], scale. = T)
+summary(pcs_s)
+pcs_s$rot
+```
+
+# Post scaling our data into Normalized form, we see a significant change in the principal components. The proportion of variance of PC1 is 0.2716 which is very less compared to unscaled date, also positively affected by the presence of variables, Fixed charge and ROR. In order to get maximum weightage we need to have atleast till PC7, we can only drop PC8. Hence, Yes the PC values and following interpretations certainly change after the data is scaled.
