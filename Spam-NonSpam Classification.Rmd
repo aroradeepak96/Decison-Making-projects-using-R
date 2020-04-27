@@ -1,0 +1,162 @@
+
+# Linear Discriminant Analysis -- *(using MASS package)*  
+\     
+```{r loadpackages, warning=FALSE, message=FALSE}
+pacman::p_load(caret, data.table, MASS, ggplot2)
+options(digits = 3)
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=6, fig.path = 'Figs/')
+theme_set(theme_classic())
+```
+
+\pagebreak  
+## __QUESTION 1__  
+```{r spambase}
+# Examine how each predictor differs between the spam and non-spam e-mails by comparing the spam-class average and non-spam-class average. Identify 10 predictors for which the difference between the spam-class average and non-spam class average is highest
+
+#Read the spambase.data file
+e.data <- fread(spambase.data)
+email.data <- data.frame(e.data)
+
+#Read the spambase.names file
+e.names <- read.csv("spambase.names", sep=":", header = FALSE, skip =33)
+e.names.mat <- as.matrix(e.names[-2])
+
+#Rename the column names of spambase.data file
+colnames(email.data) <- c(e.names.mat,"Spam/Non-Spam")
+
+#Separating Spams and non-spams into two different dataframes
+spammail.yes <- email.data[which(email.data$`Spam/Non-Spam`==1),]
+spammail.no <- email.data[which(email.data$`Spam/Non-Spam`==0),]
+
+#Average of Spams and non-spams
+avg.spammail.yes <- colMeans(spammail.yes[1:57])
+avg.spammail.no <- colMeans(spammail.no[1:57])
+
+#Difference between Averages of Spams and non Spams
+diff_average <- abs(avg.spammail.yes - avg.spammail.no)
+diff_average
+
+max_diff <- sort.list(diff_average, decreasing = TRUE)
+head(max_diff,10)
+highest_10 <- email.data[,c(57,56,55,27,19,21,25,16,26,52)]
+top.ten.names <- as.data.frame(names(highest_10))
+
+max_diff <- sort.list(diff_average, decreasing = TRUE)
+highest_10 <- email.data[,c(head(max_diff,10))]
+
+col1 <- names(highest_10)
+cols <- c(col1,'Spam/Non-Spam')
+cat("\nTop 10 predictors\n")
+col1
+
+```
+
+\pagebreak  
+## __QUESTION 2__  
+```{r}
+#Perform a linear discriminant analysis using the training dataset. Include only 10 predictors identified in the question above in the model
+set.seed(42)
+
+train.indices <- createDataPartition(email.data$`Spam/Non-Spam`, p = 0.8, list = FALSE)
+#Get the training data
+training <- email.data[train.indices, ]
+#Get the validation data
+validation <- email.data[-train.indices, ]
+
+#Normalizing the data to perform LDA
+email.normalized <- preProcess(training[,1:57], method = c("center","scale"))
+email.train <- predict(email.normalized, training)
+email.validation <- predict(email.normalized, validation)
+#Getting the data from normalized training dataset having only top ten predictors
+pred.data.train <- email.train[, cols]
+pred.data.valid <- email.validation[, cols]
+
+#Applying LDA on the normalized training data having top 10 predictors
+spam.lda <- lda( `Spam/Non-Spam`~. , data = pred.data.train)
+spam.lda
+```
+
+#__QUESTION 3__
+```{r}
+#Prior Probabilities
+spam.lda$prior
+
+```
+
+#__QUESTION 4__
+```{r}
+#Co-efficients of linear discriminants are listed below, these are used to generate LD score, LD scores inturn are going to generate final classification of each record. Only one coefficient(word_freq_address) is negative.
+spam.lda$scaling
+
+```
+
+#__QUESTION 5__
+```{r}
+# LD scores are generated below, with default cutoff probability 0.5, 
+# any record with spam probability greater than 0.5 is classified as SPAM and rest into non-SPAM
+# all the LD scores with negative sign are Non-spams and with positive sign are spams.
+pred1 <- predict(spam.lda, pred.data.valid)
+pred.sample <- predict(spam.lda, pred.data.valid[1:10,])
+names(pred.sample)  ## "class", "posterior", "x"
+pred.sample
+```
+
+#__QUESTION 6__
+
+There is only 1 linear discriminant in this model. Because the number of linear discriminant is always one value less than the number of classes. Thus, as there are two classes the number of linear discriminant is one.
+
+#__QUESTION 7__
+```{r}
+#LDA plots using Training and Validation data are plotted below
+#The information presented by both data sets is similar in a way, ie. in group Non-Spam, more records are towards less than 0 and in group Spam more records #are towards more than 0. Rest are mis-classified records 
+#Both plots are visibly different looking at number of mis-classified records in validation data, it is reflected as low specificity in Que.8
+
+train.lda<-lda( `Spam/Non-Spam`~. , data=pred.data.train)
+plot(train.lda)
+
+valid.lda<-lda( `Spam/Non-Spam`~. , data=pred.data.valid)
+plot(valid.lda)
+
+```
+
+#__QUESTION 8__
+```{r}
+#Confusion Matrix of Validation data, Sensitivity : 0.919, Specificity : 0.566
+#919 are total observations in Validation data
+# 236 SPAM and 520 Non SPAM records are classified correctly
+# 118 SPAM and 46 Non SPAM records are mis-classified incorrectly
+conf.mat <- table(pred1$class,pred.data.valid$`Spam/Non-Spam`)
+confusionMatrix(conf.mat)
+
+```
+
+#__QUESTION 9__
+```{r}
+library(gains)
+gain.data <- gains(pred.data.valid$`Spam/Non-Spam`,pred1$x[,1])
+plot(c(0,gain.data$cume.pct.of.total*sum(as.numeric(pred.data.valid$`Spam/Non-Spam`)))
+     ~c(0,gain.data$cume.obs),
+     xlab = 'No.Of.Cases', ylab = 'Cumulative',
+     main = "Lift Chart for Predictions",
+     col = "seagreen",
+     type = "l")
+lines(c(0,sum(as.numeric(pred.data.valid$`Spam/Non-Spam`)))~c(0,dim(email.validation)[1]), lty = 5)
+
+
+### Decile Lift Charts
+heights.data <- gain.data$mean.resp/mean(as.numeric(pred.data.valid$`Spam/Non-Spam`))
+barplot(heights.data, names.arg = gain.data$depth,
+        ylim = c(0,2.5),
+        col = "seagreen",
+        xlab = "Percentile",
+        ylab = "Mean Response",
+        main = "Decile-wise Lift Chart for Predictions")
+```
+
+#__QUESTION 10__
+```{r}
+# With probability cutoff 0.2, Accuracy of the model improved from 0.78 t0 0.95
+# we can also see Specificity as 1, which is all 282 SPAM records are correctly identified
+confusionMatrix(as.factor(ifelse(pred1$x>0.2, 1, 0)), pred1$class)
+
+```
