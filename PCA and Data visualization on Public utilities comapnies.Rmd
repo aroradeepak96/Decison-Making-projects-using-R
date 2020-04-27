@@ -3,8 +3,7 @@ output:
   pdf_document: default
   html_document: default
 ---
-#Group 9
-
+|
 
 
 ```{r}
@@ -14,7 +13,6 @@ pacman::p_load(forecast, tidyverse, gplots, GGally, mosaic,
 ```
                
 
-##ANSWER1
 ```{r}
 Utilities.dt <- read.csv("C:/Users/arora/Documents/R/Utilities.csv")
 summary(Utilities.dt[,!c("Company")])
