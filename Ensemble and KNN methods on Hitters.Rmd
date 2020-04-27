@@ -1,0 +1,175 @@
+
+# Load the packages:
+```{r warning=FALSE}
+if(!require("pacman")) install.packages("pacman")
+pacman::p_load(caret, data.table, ISLR, tidyr, devtools, ggplot2, tidyverse,
+               gains, leaps, rpart, rpart.plot,gbm ,randomForest, tinytex,
+               knitr,magrittr,dplyr,tree)
+search()
+```
+# Loading data:
+```{r explore}
+set.seed(42)
+dim(Hitters)
+str(Hitters)
+Hitters.df <- data.frame(Hitters)
+summary(Hitters.df)
+```
+
+# Question 1:
+```{r}
+set.seed(42)
+HittersNew.df <- Hitters[!(is.na(Hitters$Salary)),]
+rows.removed <- nrow(Hitters) - nrow(HittersNew.df)
+rows.removed
+
+# Verification of no 'NA' values in SALARy
+sapply(HittersNew.df$Salary, function(Salary) sum(length(which(is.na(Salary)))))
+dim(HittersNew.df)
+```
+
+#Interpretation 1: From the sum function, 59 observations do not have salary information. So, 59 out of the 322 were removed, leaving us with 263 observations.
+
+
+# Question 2: 
+```{r}
+set.seed(42)
+par(mfrow = c(2,1))
+plot(HittersNew.df$Salary,main = "Scatter plot for Salary", ylab ="Salary")
+logSalary <-log(HittersNew.df$Salary)
+plot(logSalary, main = "Scatter plot for Log(Salary)")
+HittersNew.df$Salary <- log(HittersNew.df$Salary)
+
+```
+
+# Interpretation 2. From the scatter plot for salary, we observe that the points are tightly packed and thus the interpretation is difficult. When using a (natural) log transformation the values are distributed in the graph and the outliers are removed and the data can be interpretted easily.
+
+
+# Question 3:
+```{r}
+set.seed(42)
+ggplot(HittersNew.df, aes(x = Years, y = Hits, color = Salary))+
+    geom_point()+
+     ggtitle("Hits vs Years Scatterplot")
+```
+
+# Interpretation 3. From the plot we observe that the players who get high salary lie between the range of 5 and 15 years. Till the year 6 players who has higher number of hits receive the higher salaries. From the 7th year the number of hits do not provide sufficient information regarding the salary.
+
+
+# Question 4:
+```{r}
+set.seed(42)
+linear_regression <- lm(Salary ~ (AtBat+ Hits+ HmRun+ Runs+ RBI+ Walks+ Years+ CAtBat
+                                  + CHits+ CHmRun+ CRuns+ CRBI+ CWalks+ League+ Division+ 
+                                  PutOuts+Assists+ Errors+ NewLeague), data = HittersNew.df)
+summary(linear_regression)
+
+Subset_selection <- regsubsets(HittersNew.df$Salary ~ ., data = HittersNew.df, nbest = 1, 
+                               nvmax = dim(HittersNew.df)[2],
+                     method = "exhaustive")
+
+sum <- summary(Subset_selection)
+
+sum$which
+sum$rsq
+sum$adjr2
+sum$cp
+
+Subset_selection_lm <- lm(Salary ~ (AtBat+Hits+Walks+Years+CRuns+CWalks+PutOuts),
+                          data = HittersNew.df)
+
+cat("Linear Regression BIC = ",BIC(linear_regression))
+cat("\nSubset Selection BIC = ",BIC(Subset_selection_lm))
+```
+
+# Interpretation 4. The best model found using BIC is subset selection model.  Also, if we take a look at mallow CP, the best model is one that includes 8 predictors with a mallow CP of 6.185 (mallow CP is calculated as shown, [predictor value < position +1]) which includes: AtBat, Hits, Walks, Years, CRuns, CWalks, DvisionW, and PutOuts.
+
+
+# Question 5:
+```{r}
+set.seed(42)
+train_index <- sample(c(1:263),(0.8*263))
+HittersNew.train.df <- HittersNew.df[train_index,]
+HittersNew.valid.df <- HittersNew.df[-train_index,]
+```
+
+
+####*Question 6:
+```{r}
+set.seed(42)
+salary_regtree <- rpart(Salary ~ (Hits+Years), data = HittersNew.train.df, method = "anova")
+prp(salary_regtree,type = 1, extra = 1, under = TRUE, split.font = 2, 
+    varlen = -10, box.palette = "BuOr")
+rpart.rules(salary_regtree, cover = TRUE)
+```
+
+# Interpretation 6: RULE for receiving the highest salary: IF (Years >= 5) AND (Hits > 104) THEN Salary = 6.7. There are 77 players who receive this salary. The salary is approximately $812.
+
+
+# Question 7:
+```{r warning=FALSE}
+set.seed(42)
+shrinkage <- seq(0.01,0.1,0.005)
+training.mse <- array(NA,length(shrinkage))
+test.mse <- array(NA,length(shrinkage))
+
+for (i in 1:length(shrinkage))
+{
+  sal.boost <- gbm(Salary ~., data = HittersNew.train.df,distribution = "gaussian",
+                   n.trees = 1000, shrinkage = shrinkage[i], verbose = F)
+  
+
+training.mse[i] <- mean((predict(sal.boost,data=HittersNew.train.df,n.trees=1000)
+                         -HittersNew.train.df$Salary)^2)
+
+test.mse[i] <- mean((predict(sal.boost,data= HittersNew.valid.df,n.trees=1000)
+                     -HittersNew.valid.df$Salary)^2)}
+
+ggplot(data.frame(x=shrinkage,y=training.mse))+
+  geom_point(aes(x=x,y=y),colour = "red")+
+  xlab("Shrinkage")+
+  ylab("Training MSE")+
+  ggtitle("Shrinkage vs Training Data MSE")
+
+```
+ 
+
+# Question 8:
+```{r warning=FALSE}
+set.seed(42)
+ggplot(data.frame(x=shrinkage,y=test.mse))+
+  geom_point(aes(x=x,y=y),colour = "red")+
+  xlab("Shrinkage")+
+  ylab("Test MSE")+
+  ggtitle("Shrinkage vs Test Data MSE")
+
+```
+
+
+# Question 9:
+```{r}
+set.seed(42)
+summary(sal.boost, cBars = 8,las = 2)
+```
+
+# Interpretation 9:
+# Variables which have the highest influence in the boosted model in order
+# 1. CRuns
+# 2. CRBI
+# 3. CATBat
+# 4. PutOuts
+# 5. Years
+# 6. Hits
+# 7. CHmRun
+# 8. CWalks
+
+# Question 10:  
+```{r}
+set.seed(42)
+bag.salary <- randomForest(Salary~., data=HittersNew.train.df, 
+                           mtry = 19, importance = TRUE) 
+bag.salary
+yhat.bag <- predict(bag.salary, newdata=HittersNew.valid.df)
+mean((yhat.bag-HittersNew.valid.df$Salary)^2)
+```
+# Interpretation 10: The test set MSE is 0.2463
